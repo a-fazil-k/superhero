@@ -1,13 +1,11 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
+<html lang="tr"><head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0d0a22">
   <title>20$ Süper Kahraman Açık Artırması</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=Anton&amp;family=Barlow:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -30,6 +28,8 @@
           <li>Her kahraman 1$'dan başlar. Açılış teklifini sırası gelen oyuncu otomatik yapar.</li>
           <li>15 saniye içinde istediğin miktar kadar artır ya da pas geç.</li>
           <li>Son saniyelerde gelen teklif süreyi biraz uzatır.</li>
+          <li>Parası biten oyuncunun sırasında kahraman ücretsiz açılır; rakip artırmazsa ona kalır.</li>
+          <li>Biri 5 kişilik kadrosunu doldurursa kalan kahramanlar sırayla diğerine otomatik eklenir.</li>
           <li>Toplam gücü yüksek olan kadro kazanır.</li>
         </ul>
       </div>
@@ -84,17 +84,17 @@
           <div class="bid-leader" id="bid-leader">Henüz teklif yok</div>
         </div>
 
-        <div class="banner" id="banner" hidden></div>
+        <div class="banner" id="banner" hidden=""></div>
       </div>
 
       <div class="controls">
         <div class="stepper" role="group" aria-label="Artırma miktarı">
-          <button id="dec-btn" class="step-btn" aria-label="Azalt" disabled>-</button>
+          <button id="dec-btn" class="step-btn" aria-label="Azalt" disabled="">-</button>
           <div class="step-val"><span id="inc-value">1</span>$<small>artır</small></div>
-          <button id="inc-btn" class="step-btn" aria-label="Arttır" disabled>+</button>
+          <button id="inc-btn" class="step-btn" aria-label="Arttır" disabled="">+</button>
         </div>
-        <button id="bid-btn" class="send-btn" disabled><span>Teklif Ver</span><small id="bid-total"></small></button>
-        <button id="pass-btn" class="pass-btn" disabled>Pas Geç</button>
+        <button id="bid-btn" class="send-btn" disabled=""><span>Teklif Ver</span><small id="bid-total"></small></button>
+        <button id="pass-btn" class="pass-btn" disabled="">Pas Geç</button>
       </div>
     </section>
 
@@ -110,17 +110,18 @@
   </main>
 
   <!-- Üst katman: eşleşme bilgisi, bağlantı hataları -->
-  <div id="overlay" class="overlay" hidden>
+  <div id="overlay" class="overlay" hidden="">
     <div class="overlay-card">
       <h3 id="overlay-title"></h3>
       <p id="overlay-text"></p>
-      <button id="overlay-btn" class="cta small" hidden></button>
+      <button id="overlay-btn" class="cta small" hidden=""></button>
     </div>
   </div>
 
-  <div id="toast" class="toast" hidden></div>
+  <div id="toast" class="toast" hidden=""></div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="client.js"></script>
-</body>
-</html>
+
+
+</body></html>
