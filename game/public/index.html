@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d0a22">
+  <title>20$ Süper Kahraman Açık Artırması</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="app">
+
+    <!-- LOBİ -->
+    <section id="screen-lobby" class="screen active">
+      <div class="lobby-card">
+        <h1 class="logo"><span class="logo-money">20$</span> ile kadronu kur</h1>
+        <p class="lead">Rakibinle canlı açık artırmaya gir. 5 süper kahramanı bütçeni aşmadan topla, daha güçlü kadroyu kuran kazansın.</p>
+
+        <label class="field" for="name-input">Takma adın</label>
+        <input id="name-input" type="text" maxlength="16" placeholder="Oyuncu" autocomplete="nickname">
+
+        <button id="find-btn" class="cta">Hızlı Maç Bul</button>
+        <p class="online"><span class="dot"></span><span id="online-count">1</span> kişi çevrimiçi</p>
+
+        <ul class="rules">
+          <li>İki oyuncunun da 20$ bütçesi var.</li>
+          <li>Her kahraman 1$'dan başlar. Açılış teklifini sırası gelen oyuncu otomatik yapar.</li>
+          <li>15 saniye içinde istediğin miktar kadar artır ya da pas geç.</li>
+          <li>Son saniyelerde gelen teklif süreyi biraz uzatır.</li>
+          <li>Toplam gücü yüksek olan kadro kazanır.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- RAKİP ARAMA -->
+    <section id="screen-searching" class="screen">
+      <div class="search-card">
+        <div class="radar" aria-hidden="true"><i></i><i></i><i></i><b>🦸</b></div>
+        <h2>Rakip aranıyor...</h2>
+        <p class="muted">Sırada bekleyen biri olduğunda maç hemen başlar.</p>
+        <button id="cancel-btn" class="ghost">Aramayı iptal et</button>
+      </div>
+    </section>
+
+    <!-- AÇIK ARTIRMA -->
+    <section id="screen-auction" class="screen">
+      <div class="vs-bar">
+        <div class="player you">
+          <div class="pname"><span id="you-name">Sen</span><small>sen</small></div>
+          <div class="budget"><span id="you-budget">20</span>$</div>
+          <div class="slots" id="you-slots"></div>
+        </div>
+        <div class="vs">VS</div>
+        <div class="player opp">
+          <div class="pname"><span id="opp-name">Rakip</span><small>rakip</small></div>
+          <div class="budget"><span id="opp-budget">20</span>$</div>
+          <div class="slots" id="opp-slots"></div>
+        </div>
+      </div>
+
+      <div class="stage">
+        <div class="hero-card" id="hero-card">
+          <div class="burst" aria-hidden="true"></div>
+          <div class="round-label" id="round-label">Hazırlanıyor</div>
+          <div class="hero-icon" id="hero-icon">❔</div>
+          <h2 id="hero-name">Maç başlıyor</h2>
+          <p id="hero-desc" class="hero-desc">İlk kahraman birazdan sahneye çıkıyor.</p>
+          <div class="hero-meta">
+            <span class="chip">Güç <b id="hero-power">-</b></span>
+            <span class="chip" id="hero-opener">Açılış: -</span>
+          </div>
+        </div>
+
+        <div class="timer">
+          <div class="bar"><i id="timer-bar"></i></div>
+          <div class="sec" id="timer-sec">15</div>
+        </div>
+
+        <div class="bidbox" id="bidbox">
+          <div class="bid-amount" id="bid-amount">-</div>
+          <div class="bid-leader" id="bid-leader">Henüz teklif yok</div>
+        </div>
+
+        <div class="banner" id="banner" hidden></div>
+      </div>
+
+      <div class="controls">
+        <div class="stepper" role="group" aria-label="Artırma miktarı">
+          <button id="dec-btn" class="step-btn" aria-label="Azalt" disabled>-</button>
+          <div class="step-val"><span id="inc-value">1</span>$<small>artır</small></div>
+          <button id="inc-btn" class="step-btn" aria-label="Arttır" disabled>+</button>
+        </div>
+        <button id="bid-btn" class="send-btn" disabled><span>Teklif Ver</span><small id="bid-total"></small></button>
+        <button id="pass-btn" class="pass-btn" disabled>Pas Geç</button>
+      </div>
+    </section>
+
+    <!-- SONUÇ -->
+    <section id="screen-result" class="screen">
+      <div class="result-head">
+        <h2 id="result-title">Sonuç</h2>
+        <p id="result-sub" class="muted"></p>
+      </div>
+      <div class="compare" id="compare"></div>
+      <button id="again-btn" class="cta">Yeni Maç Ara</button>
+    </section>
+  </main>
+
+  <!-- Üst katman: eşleşme bilgisi, bağlantı hataları -->
+  <div id="overlay" class="overlay" hidden>
+    <div class="overlay-card">
+      <h3 id="overlay-title"></h3>
+      <p id="overlay-text"></p>
+      <button id="overlay-btn" class="cta small" hidden></button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
