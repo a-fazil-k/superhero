@@ -1,390 +1,384 @@
-:root {
-  --ink: #0d0a22;
-  --panel: #16123a;
-  --panel-2: #201a4d;
-  --edge: #3b3185;
-  --text: #f3f0ff;
-  --muted: #a39bd6;
-  --you: #27e4ff;
-  --opp: #ff3d8b;
-  --gold: #ffd447;
-  --danger: #ff5a5a;
-  --display: 'Anton', 'Impact', 'Arial Narrow', sans-serif;
-  --body: 'Barlow', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+'use strict';
+
+const express = require('express');
+const http = require('http');
+const path = require('path');
+const crypto = require('crypto');
+const { Server } = require('socket.io');
+
+const PORT = process.env.PORT || 3000;
+
+/* ----------------------------- Oyun ayarları ----------------------------- */
+const START_BUDGET = 20;   // Başlangıç bütçesi ($)
+const TEAM_SIZE = 5;       // Kadro büyüklüğü
+const ROUND_MS = 15000;    // Her kahraman için açık artırma süresi
+const SNIPE_MS = 3000;     // Son saniye teklifinde süre en az bu kadar uzar
+const BREAK_MS = 3500;     // Turlar arası bekleme
+const INTRO_MS = 3500;     // Eşleşme sonrası geri sayım
+const OPENING_BID = 1;     // Her kahraman 1$'dan başlar (parası bitenin sırasında 0$)
+const AUTO_MS = 2200;      // Otomatik doldurma turunun gösterim süresi
+const AUTO_BREAK_MS = 1200;
+
+/* ---------------------------- Kahraman havuzu ---------------------------- */
+const HEROES = [
+  { id: 'ironman', name: 'Iron Man', icon: '🦾', color: '#ff4d4d', power: 93, desc: 'Dahi mucit. Gelişmiş zırhı ve repulsor silahlarıyla gökyüzünün hâkimi.' },
+  { id: 'cap', name: 'Captain America', icon: '🛡️', color: '#3b82f6', power: 88, desc: 'Süper asker serumu, kırılmaz kalkan ve ilham veren liderlik.' },
+  { id: 'thor', name: 'Thor', icon: '⚡', color: '#7dd3fc', power: 95, desc: 'Asgard\'ın gök gürültüsü tanrısı. Mjölnir ile şimşekleri yönetir.' },
+  { id: 'hulk', name: 'Hulk', icon: '💚', color: '#4ade80', power: 94, desc: 'Öfkelendikçe güçlenen yıkılmaz dev. Sınırsız fiziksel güç.' },
+  { id: 'spiderman', name: 'Spider-Man', icon: '🕷️', color: '#ef4444', power: 90, desc: 'Örümcek duyusu, ağ atma ve inanılmaz çeviklik. Mahallenin kahramanı.' },
+  { id: 'panther', name: 'Black Panther', icon: '🐾', color: '#a78bfa', power: 89, desc: 'Wakanda kralı. Vibranyum kostümü ve usta dövüş becerileri.' },
+  { id: 'strange', name: 'Doctor Strange', icon: '🔮', color: '#f59e0b', power: 92, desc: 'Yüce Büyücü. Zamanı, boyutları ve gerçekliği büker.' },
+  { id: 'marvel', name: 'Captain Marvel', icon: '🌟', color: '#fbbf24', power: 96, desc: 'Kozmik enerji emip fotonik patlamalara çevirir. Işık hızında uçar.' },
+  { id: 'wanda', name: 'Scarlet Witch', icon: '🌀', color: '#f43f5e', power: 97, desc: 'Kaos büyüsüyle gerçekliği yeniden yazabilen en güçlü büyücülerden biri.' },
+  { id: 'wolverine', name: 'Wolverine', icon: '🐺', color: '#facc15', power: 85, desc: 'Adamantyum pençeler ve inanılmaz iyileşme gücü. Durdurulamaz.' },
+  { id: 'deadpool', name: 'Deadpool', icon: '🗡️', color: '#dc2626', power: 80, desc: 'Ölümsüz iyileşme, kılıç ustalığı ve dördüncü duvarı yıkan şakalar.' },
+  { id: 'widow', name: 'Black Widow', icon: '🕸️', color: '#94a3b8', power: 74, desc: 'Usta casus ve suikastçı. Dövüş sanatlarında üst düzey.' },
+  { id: 'hawkeye', name: 'Hawkeye', icon: '🏹', color: '#8b5cf6', power: 70, desc: 'Hiç ıskalamayan okçu. Ok çeşitleriyle her duruma hazır.' },
+  { id: 'antman', name: 'Ant-Man', icon: '🐜', color: '#ef4444', power: 68, desc: 'Atom boyutuna küçülür, dev boyuta büyür. Karıncaları yönetir.' },
+  { id: 'vision', name: 'Vision', icon: '🤖', color: '#fb923c', power: 91, desc: 'Yapay zekâ ve Zihin Taşı. Maddenin içinden geçer, enerji ışını atar.' },
+  { id: 'starlord', name: 'Star-Lord', icon: '🚀', color: '#f97316', power: 72, desc: 'Galaksinin koruyucuları lideri. Element silahları ve kıvrak zekâ.' },
+  { id: 'groot', name: 'Groot', icon: '🌳', color: '#84cc16', power: 78, desc: 'Dev ağaç gövdesi, uzayan dallar ve sarsılmaz sadakat.' },
+  { id: 'rocket', name: 'Rocket', icon: '🦝', color: '#fb7185', power: 69, desc: 'Silah ve teknoloji dehası. Küçük ama çok tehlikeli.' },
+  { id: 'loki', name: 'Loki', icon: '🎭', color: '#22c55e', power: 82, desc: 'Hile tanrısı. İllüzyonlar, büyü ve hesapsız planlar.' },
+  { id: 'bucky', name: 'Winter Soldier', icon: '🔫', color: '#64748b', power: 79, desc: 'Metal kol, eğitimli suikastçı ve ölümcül nişancı.' },
+  { id: 'falcon', name: 'Falcon', icon: '🦅', color: '#ef4444', power: 66, desc: 'Kanatlı zırhıyla havada manevra ustası. Güvenilir takım arkadaşı.' },
+  { id: 'storm', name: 'Storm', icon: '⛈️', color: '#38bdf8', power: 88, desc: 'Hava durumunu yönetir. Fırtına, yıldırım ve kasırga çağırır.' },
+  { id: 'daredevil', name: 'Daredevil', icon: '😈', color: '#dc2626', power: 71, desc: 'Gözleri görmez ama diğer duyuları insanüstü. Usta dövüşçü.' },
+  { id: 'thanos', name: 'Thanos', icon: '💜', color: '#c084fc', power: 99, desc: 'Çılgın Titan. Devasa güç, taş savaşlarının efendisi.' },
+  { id: 'gamora', name: 'Gamora', icon: '⚔️', color: '#34d399', power: 76, desc: 'Galaksinin en ölümcül kadını. Kılıç ve dövüş ustası.' },
+  { id: 'fury', name: 'Nick Fury', icon: '🕶️', color: '#9ca3af', power: 60, desc: 'S.H.I.E.L.D. direktörü. Kadroyu bir araya getiren stratejist.' }
+];
+
+/* ------------------------------- Sunucu ---------------------------------- */
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+
+app.use(express.static(path.join(__dirname, 'public')));
+app.get('/healthz', (req, res) => res.send('ok'));
+
+const waitingQueue = [];      // Eşleşme bekleyen socket'ler
+const matches = new Map();    // matchId -> match
+
+/* ------------------------------ Yardımcılar ------------------------------ */
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
-* { box-sizing: border-box; }
-[hidden] { display: none !important; }
-
-html, body { margin: 0; min-height: 100%; }
-
-body {
-  font-family: var(--body);
-  font-size: 16px;
-  line-height: 1.45;
-  color: var(--text);
-  background-color: var(--ink);
-  background-image:
-    radial-gradient(ellipse at 50% -10%, rgba(255, 61, 139, .22), transparent 55%),
-    radial-gradient(rgba(124, 92, 255, .22) 1.2px, transparent 1.5px);
-  background-size: auto, 18px 18px;
-  background-attachment: fixed;
-  padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0);
-  -webkit-tap-highlight-color: transparent;
+function cleanName(raw) {
+  const s = String(raw || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 16);
+  return s || 'Oyuncu';
 }
 
-#app {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 16px 14px 28px;
+function broadcastStats() {
+  io.emit('stats', { online: io.engine.clientsCount, waiting: waitingQueue.length });
 }
 
-.screen { display: none; }
-.screen.active { display: block; }
-
-h1, h2, h3 { margin: 0; font-family: var(--display); font-weight: 400; letter-spacing: .01em; }
-.muted { color: var(--muted); }
-
-button { font-family: inherit; cursor: pointer; }
-button:focus-visible, input:focus-visible {
-  outline: 3px solid var(--gold);
-  outline-offset: 2px;
+function removeFromQueue(socket) {
+  const i = waitingQueue.indexOf(socket);
+  if (i !== -1) waitingQueue.splice(i, 1);
+  return i !== -1;
 }
 
-/* ------------------------------ Lobi ------------------------------------ */
-.lobby-card {
-  margin-top: 4vh;
-  background: var(--panel);
-  border: 2px solid var(--edge);
-  border-radius: 18px;
-  padding: 26px 20px 22px;
-  box-shadow: 6px 6px 0 var(--opp);
-}
-.logo {
-  font-size: clamp(38px, 11vw, 64px);
-  line-height: 1;
-  text-transform: uppercase;
-}
-.logo-money {
-  color: var(--gold);
-  text-shadow: 3px 3px 0 var(--opp);
-}
-.lead { margin: 14px 0 22px; color: var(--muted); font-size: 17px; max-width: 52ch; }
-.field { display: block; font-weight: 600; margin-bottom: 6px; }
-#name-input {
-  width: 100%;
-  padding: 13px 14px;
-  font: inherit;
-  font-size: 17px;
-  color: var(--text);
-  background: var(--ink);
-  border: 2px solid var(--edge);
-  border-radius: 12px;
-  margin-bottom: 16px;
-}
-#name-input:focus { border-color: var(--you); }
-
-.cta {
-  width: 100%;
-  padding: 18px 20px;
-  font-family: var(--display);
-  font-size: 26px;
-  letter-spacing: .02em;
-  text-transform: uppercase;
-  color: var(--ink);
-  background: var(--gold);
-  border: 3px solid var(--ink);
-  border-radius: 14px;
-  box-shadow: 0 0 0 3px var(--gold), 6px 6px 0 3px var(--opp);
-  transition: transform .08s, box-shadow .08s;
-}
-.cta:hover { transform: translate(-1px, -1px); }
-.cta:active { transform: translate(4px, 4px); box-shadow: 0 0 0 3px var(--gold), 2px 2px 0 3px var(--opp); }
-.cta.small { font-size: 20px; padding: 12px 18px; margin-top: 8px; }
-
-.online { display: flex; align-items: center; gap: 8px; margin: 18px 0 0; color: var(--muted); font-size: 15px; }
-.dot { width: 9px; height: 9px; border-radius: 50%; background: #3dff9a; box-shadow: 0 0 8px #3dff9a; }
-
-.rules { margin: 20px 0 0; padding: 16px 0 0 18px; border-top: 1px dashed var(--edge); color: var(--muted); font-size: 15px; }
-.rules li { margin-bottom: 4px; }
-
-/* ----------------------------- Rakip arama ------------------------------ */
-.search-card { text-align: center; padding: 14vh 10px 0; }
-.search-card h2 { font-size: 36px; margin: 26px 0 8px; }
-.radar { position: relative; width: 150px; height: 150px; margin: 0 auto; display: grid; place-items: center; }
-.radar b { font-size: 52px; font-weight: 400; z-index: 1; }
-.radar i {
-  position: absolute; inset: 0;
-  border: 2px solid var(--you);
-  border-radius: 50%;
-  opacity: 0;
-  animation: ping 2.4s ease-out infinite;
-}
-.radar i:nth-child(2) { animation-delay: .8s; border-color: var(--opp); }
-.radar i:nth-child(3) { animation-delay: 1.6s; }
-@keyframes ping { 0% { transform: scale(.3); opacity: .9; } 100% { transform: scale(1.25); opacity: 0; } }
-
-.ghost {
-  margin-top: 22px;
-  padding: 12px 22px;
-  font-size: 16px; font-weight: 600;
-  color: var(--text);
-  background: transparent;
-  border: 2px solid var(--edge);
-  border-radius: 12px;
-}
-.ghost:hover { border-color: var(--muted); }
-
-/* ------------------------------ Açık artırma ---------------------------- */
-.vs-bar {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: 8px;
-  align-items: stretch;
-}
-.vs { align-self: center; font-family: var(--display); font-size: 22px; color: var(--muted); }
-.player {
-  background: var(--panel);
-  border: 2px solid var(--edge);
-  border-radius: 14px;
-  padding: 10px 10px 12px;
-  min-width: 0;
-}
-.player.you { border-color: var(--you); box-shadow: 0 0 18px rgba(39, 228, 255, .18); }
-.player.opp { border-color: var(--opp); box-shadow: 0 0 18px rgba(255, 61, 139, .18); }
-.pname { display: flex; align-items: baseline; gap: 6px; font-weight: 700; min-width: 0; }
-.pname span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pname small { font-weight: 500; color: var(--muted); font-size: 12px; flex: none; }
-.you .pname span { color: var(--you); }
-.opp .pname span { color: var(--opp); }
-.budget { font-family: var(--display); font-size: 34px; line-height: 1.1; color: var(--gold); margin: 2px 0 8px; }
-
-.slots { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
-.slot {
-  position: relative;
-  aspect-ratio: 1;
-  display: grid; place-items: center;
-  font-size: clamp(14px, 4vw, 20px);
-  border: 1.5px dashed var(--edge);
-  border-radius: 8px;
-  background: var(--ink);
-}
-.slot.filled { border-style: solid; border-color: var(--muted); background: var(--panel-2); }
-.slot em {
-  position: absolute; right: -2px; bottom: -6px;
-  font-style: normal; font-size: 10px; font-weight: 700;
-  padding: 0 4px; border-radius: 6px;
-  color: var(--ink); background: var(--gold);
-}
-.slot.pop { animation: pop .5s; }
-
-.stage { margin-top: 14px; }
-
-.hero-card {
-  --hc: #7c5cff;
-  position: relative;
-  overflow: hidden;
-  text-align: center;
-  padding: 18px 16px 18px;
-  background: var(--panel-2);
-  border: 3px solid var(--hc);
-  border-radius: 18px;
-  box-shadow: 6px 6px 0 var(--hc);
-}
-.burst {
-  position: absolute; left: 50%; top: 60px;
-  width: 560px; height: 560px;
-  transform: translate(-50%, -50%);
-  background: repeating-conic-gradient(color-mix(in srgb, var(--hc) 30%, transparent) 0 8deg, transparent 8deg 16deg);
-  -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 62%);
-  mask-image: radial-gradient(circle, #000 0%, transparent 62%);
-}
-.hero-card > *:not(.burst) { position: relative; }
-.round-label { font-weight: 600; color: var(--muted); font-size: 14px; }
-.hero-icon { font-size: 84px; line-height: 1.15; margin: 4px 0 2px; filter: drop-shadow(0 6px 0 rgba(0, 0, 0, .35)); }
-.hero-card h2 { font-size: clamp(32px, 9vw, 46px); text-transform: uppercase; line-height: 1.05; }
-.hero-desc { margin: 8px auto 12px; max-width: 44ch; color: #d9d3ff; min-height: 3em; }
-.hero-meta { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
-.chip {
-  padding: 5px 12px;
-  border-radius: 999px;
-  background: var(--ink);
-  border: 1.5px solid var(--hc);
-  color: var(--muted);
-  font-weight: 600; font-size: 15px;
-}
-.chip b { color: var(--text); font-size: 17px; }
-.hero-card.enter .hero-icon { animation: pop .5s; }
-@keyframes pop { 0% { transform: scale(.4) rotate(-8deg); } 60% { transform: scale(1.15) rotate(3deg); } 100% { transform: scale(1) rotate(0); } }
-
-.timer { display: flex; align-items: center; gap: 12px; margin: 16px 2px 12px; }
-.timer .bar { flex: 1; height: 14px; background: var(--ink); border: 2px solid var(--edge); border-radius: 999px; overflow: hidden; }
-.timer .bar i { display: block; height: 100%; width: 100%; background: var(--you); border-radius: 999px; }
-.timer .sec { font-family: var(--display); font-size: 40px; line-height: 1; width: 2ch; text-align: right; }
-.timer.urgent .bar i { background: var(--opp); }
-.timer.urgent .sec { color: var(--opp); }
-
-.bidbox {
-  text-align: center;
-  padding: 12px 10px;
-  background: var(--panel);
-  border: 2px solid var(--edge);
-  border-radius: 14px;
-  transition: border-color .15s, box-shadow .15s;
-}
-.bid-amount { font-family: var(--display); font-size: 54px; line-height: 1; color: var(--gold); }
-.bid-leader { margin-top: 4px; font-weight: 600; color: var(--muted); }
-.bidbox.lead-you { border-color: var(--you); box-shadow: 0 0 18px rgba(39, 228, 255, .3); }
-.bidbox.lead-you .bid-leader { color: var(--you); }
-.bidbox.lead-opp { border-color: var(--opp); box-shadow: 0 0 18px rgba(255, 61, 139, .3); }
-.bidbox.lead-opp .bid-leader { color: var(--opp); }
-.bidbox.flash .bid-amount { animation: pop .35s; }
-
-.banner {
-  margin-top: 12px;
-  padding: 12px 14px;
-  text-align: center;
-  font-weight: 700;
-  border-radius: 12px;
-  background: var(--panel-2);
-  border: 2px solid var(--gold);
-  color: var(--gold);
-}
-.banner.good { border-color: var(--you); color: var(--you); }
-.banner.bad { border-color: var(--opp); color: var(--opp); }
-.banner.info { border-color: var(--edge); color: var(--muted); }
-
-.controls {
-  display: grid;
-  grid-template-columns: 1.1fr 1fr;
-  gap: 10px;
-  margin-top: 14px;
-}
-.stepper {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 6px;
-  padding: 6px;
-  background: var(--panel);
-  border: 2px solid var(--edge);
-  border-radius: 14px;
-}
-.step-btn {
-  width: 48px; height: 52px;
-  font-family: var(--display); font-size: 32px; line-height: 1;
-  color: var(--ink);
-  background: var(--you);
-  border: 3px solid var(--ink);
-  border-radius: 12px;
-  box-shadow: 0 0 0 2px var(--you);
-  touch-action: manipulation;
-}
-.step-btn:active:not(:disabled) { transform: translate(2px, 2px); }
-.step-val { text-align: center; font-family: var(--display); font-size: 40px; line-height: 1; color: var(--gold); }
-.step-val small { display: block; font-family: var(--body); font-size: 12px; font-weight: 600; color: var(--muted); }
-.send-btn {
-  padding: 8px;
-  color: var(--ink);
-  background: var(--gold);
-  border: 3px solid var(--ink);
-  border-radius: 14px;
-  box-shadow: 0 0 0 2px var(--gold), 4px 4px 0 2px var(--opp);
-  transition: transform .08s;
-  touch-action: manipulation;
-}
-.send-btn span { display: block; font-family: var(--display); font-size: 26px; text-transform: uppercase; line-height: 1.1; }
-.send-btn small { display: block; font-weight: 700; font-size: 13px; min-height: 1.2em; opacity: .75; }
-.send-btn:active:not(:disabled) { transform: translate(3px, 3px); }
-.step-btn:disabled, .send-btn:disabled, .pass-btn:disabled {
-  cursor: not-allowed;
-  opacity: .35;
-  box-shadow: none;
-  filter: grayscale(.6);
-}
-.pass-btn {
-  grid-column: 1 / -1;
-  padding: 14px;
-  font-size: 18px; font-weight: 700;
-  color: var(--text);
-  background: transparent;
-  border: 2px solid var(--edge);
-  border-radius: 12px;
-}
-.pass-btn:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
-
-/* -------------------------------- Sonuç -------------------------------- */
-.result-head { text-align: center; margin: 10px 0 18px; }
-.result-head h2 { font-size: clamp(40px, 12vw, 64px); text-transform: uppercase; color: var(--gold); text-shadow: 3px 3px 0 var(--opp); }
-.result-head p { margin: 6px 0 0; font-size: 17px; }
-
-.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
-.col {
-  min-width: 0;
-  padding: 12px 10px;
-  background: var(--panel);
-  border: 2px solid var(--edge);
-  border-radius: 14px;
-}
-.col.you { border-color: var(--you); }
-.col.opp { border-color: var(--opp); }
-.col.win { box-shadow: 0 0 24px currentColor; }
-.col.you.win { color: rgba(39, 228, 255, .45); }
-.col.opp.win { color: rgba(255, 61, 139, .45); }
-.col > * { color: var(--text); }
-.col-name { font-weight: 700; font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.col.you .col-name { color: var(--you); }
-.col.opp .col-name { color: var(--opp); }
-.crown { display: inline-block; margin-top: 4px; padding: 2px 10px; font-weight: 700; font-size: 13px; color: var(--ink); background: var(--gold); border-radius: 999px; }
-.stats { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; margin: 10px 0; font-size: 15px; }
-.stats dt { color: var(--muted); }
-.stats dd { margin: 0; text-align: right; font-weight: 700; }
-.stats dd.big { font-family: var(--display); font-size: 26px; font-weight: 400; color: var(--gold); line-height: 1.1; }
-.team { list-style: none; margin: 0; padding: 0; }
-.team li { display: grid; grid-template-columns: auto 1fr auto; gap: 6px; align-items: center; padding: 7px 0; border-top: 1px dashed var(--edge); font-size: 14px; }
-.team .ico { font-size: 22px; }
-.team .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.team .meta { text-align: right; font-size: 12px; color: var(--muted); line-height: 1.25; }
-.team .meta b { color: var(--gold); font-size: 14px; }
-.team .empty { color: var(--muted); display: block; text-align: center; font-style: italic; border-top: 1px dashed var(--edge); padding: 10px 0 2px; }
-
-/* ----------------------- Üst katman ve bildirim ------------------------- */
-.overlay {
-  position: fixed; inset: 0; z-index: 20;
-  display: grid; place-items: center;
-  padding: 20px;
-  background: rgba(9, 6, 24, .86);
-}
-.overlay-card {
-  width: min(420px, 100%);
-  text-align: center;
-  padding: 26px 20px;
-  background: var(--panel);
-  border: 3px solid var(--gold);
-  border-radius: 18px;
-  box-shadow: 6px 6px 0 var(--opp);
-}
-.overlay-card h3 { font-size: 34px; text-transform: uppercase; color: var(--gold); }
-.overlay-card p { margin: 8px 0 4px; color: #d9d3ff; font-size: 17px; }
-
-.toast {
-  position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0));
-  transform: translateX(-50%);
-  z-index: 30;
-  max-width: calc(100% - 28px);
-  padding: 10px 16px;
-  font-weight: 600;
-  color: var(--text);
-  background: var(--danger);
-  border-radius: 12px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, .5);
+function getMatch(socket) {
+  return socket.data.matchId ? matches.get(socket.data.matchId) : null;
 }
 
-/* ------------------------------ Geniş ekran ----------------------------- */
-@media (min-width: 640px) {
-  .budget { font-size: 40px; }
+function snapshot(match) {
+  return match.players.map((p) => ({
+    name: p.name,
+    budget: p.budget,
+    spent: p.spent,
+    team: p.team
+  }));
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
+/* ----------------------------- Eşleştirme -------------------------------- */
+function tryMatch() {
+  while (waitingQueue.length >= 2) {
+    const a = waitingQueue.shift();
+    const b = waitingQueue.shift();
+    if (!a.connected && !b.connected) continue;
+    if (!a.connected) { waitingQueue.unshift(b); continue; }
+    if (!b.connected) { waitingQueue.unshift(a); continue; }
+    startMatch(a, b);
+  }
+  broadcastStats();
 }
+
+function startMatch(a, b) {
+  const id = crypto.randomUUID();
+  const nameA = a.data.name;
+  let nameB = b.data.name;
+  if (nameB === nameA) nameB = (nameB.slice(0, 13) + ' (2)');
+
+  const match = {
+    id,
+    players: [
+      { socket: a, name: nameA, budget: START_BUDGET, spent: 0, team: [] },
+      { socket: b, name: nameB, budget: START_BUDGET, spent: 0, team: [] }
+    ],
+    deck: shuffle(HEROES.slice()),
+    round: 0,
+    current: null,
+    timer: null,
+    breakTimer: null,
+    nextOpener: Math.random() < 0.5 ? 0 : 1,
+    over: false
+  };
+  matches.set(id, match);
+
+  match.players.forEach((p, idx) => {
+    p.socket.data.matchId = id;
+    p.socket.data.idx = idx;
+    p.socket.join(id);
+  });
+
+  match.players.forEach((p, idx) => {
+    p.socket.emit('matchFound', {
+      matchId: id,
+      you: idx,
+      budget: START_BUDGET,
+      teamSize: TEAM_SIZE,
+      players: match.players.map((q) => ({ name: q.name, budget: q.budget, team: [] })),
+      introMs: INTRO_MS
+    });
+  });
+
+  match.breakTimer = setTimeout(() => nextRound(match), INTRO_MS);
+}
+
+/* --------------------------- Açık artırma motoru ------------------------- */
+function nextRound(match) {
+  if (match.over) return;
+
+  const isFull = (p) => p.team.length >= TEAM_SIZE;
+  if (match.deck.length === 0 || match.players.every(isFull)) {
+    return endGame(match);
+  }
+
+  const hero = match.deck.shift();
+  match.round += 1;
+
+  let cur;
+  const fullIdx = match.players.findIndex(isFull);
+
+  if (fullIdx !== -1) {
+    // Biri kadrosunu tamamladı: sıradaki kahramanlar açık artırmasız, ücretsiz diğerine eklenir
+    cur = {
+      hero,
+      bid: 0,
+      leader: 1 - fullIdx,
+      passed: [true, true],
+      auto: true,
+      endsAt: Date.now() + AUTO_MS,
+      closed: false
+    };
+  } else {
+    // Sıra her tur diğer oyuncuya geçer. Sırası gelen açar; parası bitmişse 0$ ile açılır,
+    // rakip artırmak isterse artırır, istemezse kahraman sırası gelende kalır.
+    const opener = match.nextOpener;
+    match.nextOpener = 1 - match.nextOpener;
+    const openBid = match.players[opener].budget >= OPENING_BID ? OPENING_BID : 0;
+    cur = {
+      hero,
+      bid: openBid,
+      leader: opener,
+      passed: [false, false],
+      auto: false,
+      endsAt: Date.now() + ROUND_MS,
+      closed: false
+    };
+    // Artıramayacak durumdaki rakip otomatik pas geçmiş sayılır
+    match.players.forEach((p, i) => {
+      if (i !== opener && !(p.team.length < TEAM_SIZE && p.budget >= cur.bid + 1)) cur.passed[i] = true;
+    });
+  }
+  match.current = cur;
+
+  const duration = cur.auto ? AUTO_MS : ROUND_MS;
+  io.to(match.id).emit('roundStart', {
+    round: match.round,
+    hero,
+    bid: cur.bid,
+    leader: cur.leader,
+    auto: cur.auto,
+    endsAt: cur.endsAt,
+    serverNow: Date.now(),
+    roundMs: duration,
+    passed: cur.passed
+  });
+
+  clearTimeout(match.timer);
+  match.timer = setTimeout(() => resolveRound(match), duration);
+  if (!cur.auto) maybeFinishEarly(match);
+}
+
+function maybeFinishEarly(match) {
+  const cur = match.current;
+  if (!cur || cur.closed) return;
+  const minNext = cur.bid + 1;
+  const someoneCanBid = match.players.some(
+    (p, i) => i !== cur.leader && !cur.passed[i] && p.team.length < TEAM_SIZE && p.budget >= minNext
+  );
+  if (!someoneCanBid) {
+    clearTimeout(match.timer);
+    match.timer = setTimeout(() => resolveRound(match), 900);
+  }
+}
+
+function resolveRound(match) {
+  const cur = match.current;
+  if (match.over || !cur || cur.closed) return;
+  cur.closed = true;
+  clearTimeout(match.timer);
+
+  let winnerIdx = -1;
+  if (cur.leader >= 0) {
+    winnerIdx = cur.leader;
+    const w = match.players[winnerIdx];
+    w.budget -= cur.bid;
+    w.spent += cur.bid;
+    w.team.push({
+      id: cur.hero.id,
+      name: cur.hero.name,
+      icon: cur.hero.icon,
+      power: cur.hero.power,
+      price: cur.bid
+    });
+  }
+
+  io.to(match.id).emit('roundEnd', {
+    hero: cur.hero,
+    winner: winnerIdx,
+    price: cur.leader >= 0 ? cur.bid : 0,
+    auto: !!cur.auto,
+    players: snapshot(match)
+  });
+
+  match.breakTimer = setTimeout(() => nextRound(match), cur.auto ? AUTO_BREAK_MS : BREAK_MS);
+}
+
+function endGame(match) {
+  if (match.over) return;
+  const result = match.players.map((p) => ({
+    name: p.name,
+    team: p.team,
+    spent: p.spent,
+    budget: p.budget,
+    power: p.team.reduce((s, h) => s + h.power, 0)
+  }));
+
+  let winner = -1;
+  if (result[0].power !== result[1].power) winner = result[0].power > result[1].power ? 0 : 1;
+  else if (result[0].budget !== result[1].budget) winner = result[0].budget > result[1].budget ? 0 : 1;
+
+  io.to(match.id).emit('gameOver', { players: result, winner });
+  cleanupMatch(match);
+}
+
+function cleanupMatch(match) {
+  match.over = true;
+  clearTimeout(match.timer);
+  clearTimeout(match.breakTimer);
+  match.players.forEach((p) => {
+    if (p.socket.data.matchId === match.id) {
+      p.socket.data.matchId = null;
+      p.socket.leave(match.id);
+    }
+  });
+  matches.delete(match.id);
+}
+
+/* ------------------------------ Socket olayları -------------------------- */
+io.on('connection', (socket) => {
+  socket.data.matchId = null;
+  socket.data.idx = -1;
+  socket.data.name = 'Oyuncu';
+  broadcastStats();
+
+  socket.on('findMatch', (payload) => {
+    if (socket.data.matchId) return;
+    if (waitingQueue.includes(socket)) return;
+    socket.data.name = cleanName(payload && payload.name);
+    waitingQueue.push(socket);
+    socket.emit('searching');
+    tryMatch();
+    broadcastStats();
+  });
+
+  socket.on('cancelSearch', () => {
+    if (removeFromQueue(socket)) {
+      socket.emit('searchCancelled');
+      broadcastStats();
+    }
+  });
+
+  socket.on('bid', (data) => {
+    const match = getMatch(socket);
+    if (!match || match.over) return;
+    const cur = match.current;
+    if (!cur || cur.closed) return;
+
+    const idx = socket.data.idx;
+    const p = match.players[idx];
+    const inc = Math.floor(Number(data && data.inc));
+    if (!Number.isFinite(inc) || inc < 1) return;
+
+    if (cur.leader === idx) return socket.emit('errorMsg', 'En yüksek teklif zaten sende.');
+    if (cur.passed[idx]) return socket.emit('errorMsg', 'Bu kahraman için pas geçtin.');
+    if (p.team.length >= TEAM_SIZE) return socket.emit('errorMsg', 'Kadron dolu.');
+
+    const newBid = cur.bid + inc;
+    if (newBid > p.budget) return socket.emit('errorMsg', 'Bütçen bu teklif için yetmiyor.');
+
+    cur.bid = newBid;
+    cur.leader = idx;
+
+    const now = Date.now();
+    if (cur.endsAt - now < SNIPE_MS) cur.endsAt = now + SNIPE_MS;
+
+    io.to(match.id).emit('bidUpdate', {
+      bid: cur.bid,
+      leader: cur.leader,
+      endsAt: cur.endsAt,
+      serverNow: now
+    });
+
+    clearTimeout(match.timer);
+    match.timer = setTimeout(() => resolveRound(match), Math.max(0, cur.endsAt - now));
+    maybeFinishEarly(match);
+  });
+
+  socket.on('pass', () => {
+    const match = getMatch(socket);
+    if (!match || match.over) return;
+    const cur = match.current;
+    if (!cur || cur.closed) return;
+    const idx = socket.data.idx;
+    if (cur.leader === idx || cur.passed[idx]) return;
+
+    cur.passed[idx] = true;
+    io.to(match.id).emit('playerPassed', { idx });
+    maybeFinishEarly(match);
+  });
+
+  socket.on('disconnect', () => {
+    removeFromQueue(socket);
+    const match = getMatch(socket);
+    if (match && !match.over) {
+      const other = match.players.find((p) => p.socket !== socket);
+      cleanupMatch(match);
+      if (other && other.socket.connected) other.socket.emit('opponentLeft');
+    }
+    broadcastStats();
+  });
+});
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Süper Kahraman Açık Artırması ${PORT} portunda çalışıyor`);
+});
