@@ -15,7 +15,9 @@ const ROUND_MS = 15000;    // Her kahraman için açık artırma süresi
 const SNIPE_MS = 3000;     // Son saniye teklifinde süre en az bu kadar uzar
 const BREAK_MS = 3500;     // Turlar arası bekleme
 const INTRO_MS = 3500;     // Eşleşme sonrası geri sayım
-const OPENING_BID = 1;     // Her kahraman 1$'dan başlar
+const OPENING_BID = 1;     // Her kahraman 1$'dan başlar (parası bitenin sırasında 0$)
+const AUTO_MS = 2200;      // Otomatik doldurma turunun gösterim süresi
+const AUTO_BREAK_MS = 1200;
 
 /* ---------------------------- Kahraman havuzu ---------------------------- */
 const HEROES = [
@@ -154,47 +156,66 @@ function startMatch(a, b) {
 function nextRound(match) {
   if (match.over) return;
 
-  const canAfford = (p) => p.team.length < TEAM_SIZE && p.budget >= OPENING_BID;
-  if (match.deck.length === 0 || !match.players.some(canAfford)) {
+  const isFull = (p) => p.team.length >= TEAM_SIZE;
+  if (match.deck.length === 0 || match.players.every(isFull)) {
     return endGame(match);
   }
-
-  // Açılış teklifini sırası gelen oyuncu otomatik yapar; parası/kadro yeri yoksa diğeri
-  let opener = match.nextOpener;
-  match.nextOpener = 1 - match.nextOpener;
-  if (!canAfford(match.players[opener])) opener = 1 - opener;
 
   const hero = match.deck.shift();
   match.round += 1;
 
-  const cur = {
-    hero,
-    bid: OPENING_BID,
-    leader: opener,
-    passed: [false, false],
-    endsAt: Date.now() + ROUND_MS,
-    closed: false
-  };
-  // Açılıştan sonra artıramayacak durumda olan rakip otomatik pas geçmiş sayılır
-  match.players.forEach((p, i) => {
-    if (i !== opener && !(p.team.length < TEAM_SIZE && p.budget >= cur.bid + 1)) cur.passed[i] = true;
-  });
+  let cur;
+  const fullIdx = match.players.findIndex(isFull);
+
+  if (fullIdx !== -1) {
+    // Biri kadrosunu tamamladı: sıradaki kahramanlar açık artırmasız, ücretsiz diğerine eklenir
+    cur = {
+      hero,
+      bid: 0,
+      leader: 1 - fullIdx,
+      passed: [true, true],
+      auto: true,
+      endsAt: Date.now() + AUTO_MS,
+      closed: false
+    };
+  } else {
+    // Sıra her tur diğer oyuncuya geçer. Sırası gelen açar; parası bitmişse 0$ ile açılır,
+    // rakip artırmak isterse artırır, istemezse kahraman sırası gelende kalır.
+    const opener = match.nextOpener;
+    match.nextOpener = 1 - match.nextOpener;
+    const openBid = match.players[opener].budget >= OPENING_BID ? OPENING_BID : 0;
+    cur = {
+      hero,
+      bid: openBid,
+      leader: opener,
+      passed: [false, false],
+      auto: false,
+      endsAt: Date.now() + ROUND_MS,
+      closed: false
+    };
+    // Artıramayacak durumdaki rakip otomatik pas geçmiş sayılır
+    match.players.forEach((p, i) => {
+      if (i !== opener && !(p.team.length < TEAM_SIZE && p.budget >= cur.bid + 1)) cur.passed[i] = true;
+    });
+  }
   match.current = cur;
 
+  const duration = cur.auto ? AUTO_MS : ROUND_MS;
   io.to(match.id).emit('roundStart', {
     round: match.round,
     hero,
     bid: cur.bid,
     leader: cur.leader,
+    auto: cur.auto,
     endsAt: cur.endsAt,
     serverNow: Date.now(),
-    roundMs: ROUND_MS,
+    roundMs: duration,
     passed: cur.passed
   });
 
   clearTimeout(match.timer);
-  match.timer = setTimeout(() => resolveRound(match), ROUND_MS);
-  maybeFinishEarly(match);
+  match.timer = setTimeout(() => resolveRound(match), duration);
+  if (!cur.auto) maybeFinishEarly(match);
 }
 
 function maybeFinishEarly(match) {
@@ -235,10 +256,11 @@ function resolveRound(match) {
     hero: cur.hero,
     winner: winnerIdx,
     price: cur.leader >= 0 ? cur.bid : 0,
+    auto: !!cur.auto,
     players: snapshot(match)
   });
 
-  match.breakTimer = setTimeout(() => nextRound(match), BREAK_MS);
+  match.breakTimer = setTimeout(() => nextRound(match), cur.auto ? AUTO_BREAK_MS : BREAK_MS);
 }
 
 function endGame(match) {
