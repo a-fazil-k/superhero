@@ -327,22 +327,33 @@
       round: d.round,
       bid: d.bid,
       leader: d.leader,
+      auto: !!d.auto,
       passed: d.passed.slice(),
       endsAt: d.endsAt,
       closed: false
     };
     raiseAmount = 1;
     renderHero(d.hero, d.round);
-    $('#hero-opener').textContent = 'Açılış: ' + (d.leader === me ? 'sen' : players[d.leader].name);
+    $('#hero-opener').textContent = d.auto
+      ? 'Otomatik: ' + (d.leader === me ? 'sen' : players[d.leader].name)
+      : 'Açılış: ' + (d.leader === me ? 'sen' : players[d.leader].name);
     renderBid(false);
     renderControls();
     startTimer();
-    if (cur.passed[me]) {
-      showBanner('Bu kahraman için artırma yapamazsın (bütçe ya da kadro dolu).', 'info');
+    if (d.auto) {
+      if (d.leader === me) {
+        showBanner('Rakibin kadrosu doldu. ' + d.hero.name + ' otomatik olarak kadrona ekleniyor.', 'good');
+      } else {
+        showBanner('Kadron doldu. ' + d.hero.name + ' otomatik olarak ' + players[d.leader].name + ' kadrosuna ekleniyor.', 'info');
+      }
     } else if (d.leader === me) {
-      showBanner('Sıra sende: ' + d.bid + '$ ile açtın. Rakip artırmazsa kahraman senin.', 'info');
+      const open = d.bid === 0 ? 'ücretsiz açtın (bütçen bitti)' : d.bid + '$ ile açtın';
+      showBanner('Sıra sende: ' + open + '. Rakip artırmazsa kahraman senin.', 'info');
+    } else if (cur.passed[me]) {
+      showBanner(players[d.leader].name + ' ' + d.bid + '$ ile açtı. Artırma yapamazsın (bütçe ya da kadro dolu).', 'info');
     } else {
-      showBanner(players[d.leader].name + ' ' + d.bid + '$ ile açtı. Artırabilir ya da pas geçebilirsin.', 'info');
+      const open = d.bid === 0 ? 'ücretsiz açtı' : d.bid + '$ ile açtı';
+      showBanner(players[d.leader].name + ' ' + open + '. Artırabilir ya da pas geçebilirsin.', 'info');
     }
   });
 
@@ -373,10 +384,12 @@
     renderPlayers(d.winner);
     renderControls();
 
-    if (d.winner === me) {
-      showBanner(d.hero.name + ' kadrona katıldı. ' + d.price + '$ ödedin.', 'good');
+    if (d.auto) {
+      showBanner(d.hero.name + (d.winner === me ? ' kadrona eklendi.' : ' rakip kadrosuna eklendi.'), d.winner === me ? 'good' : 'info');
+    } else if (d.winner === me) {
+      showBanner(d.hero.name + ' kadrona katıldı. ' + (d.price === 0 ? 'Ücretsiz.' : d.price + '$ ödedin.'), 'good');
     } else if (d.winner >= 0) {
-      showBanner(d.hero.name + ' rakibe gitti (' + d.price + '$).', 'bad');
+      showBanner(d.hero.name + ' rakibe gitti (' + (d.price === 0 ? 'ücretsiz' : d.price + '$') + ').', 'bad');
     } else {
       showBanner(d.hero.name + ' için teklif gelmedi.', 'info');
     }
